@@ -158,56 +158,50 @@ parse_expr_result parse_e2(expr_ite first, const expr_ite &last)
 parse_expr_result parse_e3(expr_ite first, const expr_ite &last)
 {
 	skip_space(first, last);
-	auto a = parse_e2(first, last);
-	first = a.second;
+	auto ret = parse_e2(first, last);
+	first = ret.second;
 	skip_space(first, last);
-	if (first == last)
-		return parse_expr_result(std::move(a.first), first);
-	if (*first == '*')
+	while (first < last && (*first == '*' || *first == '/'))
 	{
+		char op_tmp = *first;
 		++first;
-		auto b = parse_e2(first, last);
-		return parse_expr_result
-			(std::make_unique<mul>(std::move(a.first), std::move(b.first)),
-			 b.second);
+		auto tmp = parse_e2(first, last);
+		first = tmp.second;
+		skip_space(first, last);
+		if (op_tmp == '*')
+			ret = parse_expr_result(std::make_unique<mul>
+					(std::move(ret.first), std::move(tmp.first)),
+				 tmp.second);
+		else
+			ret = parse_expr_result(std::make_unique<div>
+					(std::move(ret.first), std::move(tmp.first)),
+				 tmp.second);
 	}
-	else if (*first == '/')
-	{
-		++first;
-		auto b = parse_e2(first, last);
-		return parse_expr_result
-			(std::make_unique<div>(std::move(a.first), std::move(b.first)),
-			 b.second);
-	}
-	else
-		return parse_expr_result(std::move(a.first), first);
+	return parse_expr_result(std::move(ret.first), first);
 }
 parse_expr_result parse_expr(expr_ite first, const expr_ite &last)
 {
 	skip_space(first, last);
-	auto a = parse_e3(first, last);
-	first = a.second;
+	auto ret = parse_e3(first, last);
+	first = ret.second;
 	skip_space(first, last);
-	if (first == last)
-		return parse_expr_result(std::move(a.first), first);
-	if (*first == '+')
+	while (first < last && (*first == '+' || *first == '-'))
 	{
+		char op_tmp = *first;
 		++first;
-		auto b = parse_e3(first, last);
-		return parse_expr_result
-			(std::make_unique<add>(std::move(a.first), std::move(b.first)),
-			 b.second);
+		auto tmp = parse_e3(first, last);
+		first = tmp.second;
+		skip_space(first, last);
+		if (op_tmp == '+')
+			ret = parse_expr_result(std::make_unique<add>
+					(std::move(ret.first), std::move(tmp.first)),
+				 tmp.second);
+		else
+			ret = parse_expr_result(std::make_unique<sub>
+					(std::move(ret.first), std::move(tmp.first)),
+				 tmp.second);
 	}
-	else if (*first == '-')
-	{
-		++first;
-		auto b = parse_e3(first, last);
-		return parse_expr_result
-			(std::make_unique<sub>(std::move(a.first), std::move(b.first)),
-			 b.second);
-	}
-	else
-		return parse_expr_result(std::move(a.first), first);
+	return parse_expr_result(std::move(ret.first), first);
 }
 
 struct bool_expr
@@ -320,6 +314,7 @@ parse_bool_result parse_b1(expr_ite first, const expr_ite &last)
 	{
 		auto tmp = parse_b0(first, last);
 		first = tmp.second;
+		skip_space(first, last);
 		ret = parse_bool_result(std::make_unique<bool_and>
 				(std::move(ret.first), std::move(tmp.first)),
 				first);
@@ -335,6 +330,7 @@ parse_bool_result parse_bool_expr(expr_ite first, const expr_ite &last)
 	{
 		auto tmp = parse_b1(first, last);
 		first = tmp.second;
+		skip_space(first, last);
 		ret = parse_bool_result(std::make_unique<bool_or>
 				(std::move(ret.first), std::move(tmp.first)),
 				first);
