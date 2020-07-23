@@ -1,0 +1,2 @@
+{div {mul {add {var a} {mul {var b} {var c}}} {var d}} {mul {var a} {var c}}}
+{subscript {subscript {var a} {add {subscript {subscript {var b} {add {var c} {imm 4}}} {add {var d} {imm 5}}} {imm 4}}} {imm 3}}
