@@ -70,6 +70,7 @@ STRUCT_BIN(add)
 STRUCT_BIN(sub)
 STRUCT_BIN(mul)
 STRUCT_BIN(div)
+#undef STRUCT_BIN
 struct subscript : expr
 {
 	std::unique_ptr<expr> arr;
@@ -90,8 +91,6 @@ struct neg : unary_op
 	}
 };
 
-using parse_expr_result = std::unique_ptr<expr>;
-using parse_id_result = std::pair<std::unique_ptr<id>, expr_ite>;
 inline void skip_space(expr_ite &ptr, const expr_ite &end)
 {
 	while (ptr < end && isspace(*ptr))
@@ -99,10 +98,13 @@ inline void skip_space(expr_ite &ptr, const expr_ite &end)
 }
 /*
  * {E0} ::= ({expr}) | {id} | {IMM}
- * {E1} ::= {E0} | {id}[{expr}]
+ * {E1} ::= {E0} | {E1}[{expr}]
  * {E2} ::= {E1} | +{E2} | -{E2}
  * {E3} ::= {E2} | {E3} * {E2} | {E3} / {E2}
- * {expr} ::= {E3} | {expr} + {E3} | {expr} - {E3}
+ * {val_expr} ::= {E3} | {val_expr} + {E3} | {val_expr} - {E3}
+ * {B0} ::= {val_expr} @cmp_op {val_expr} | ({expr})
+ * {B1} ::= {B0} | {B1} && {B0}
+ * {expr} ::= {B1} | {B2} || {B1}
  */
 std::unique_ptr<expr> parse_expr(expr_ite &first, const expr_ite &last);
 id parse_id(expr_ite &first, const expr_ite &last)
@@ -161,7 +163,7 @@ std::unique_ptr<expr> parse_e1(expr_ite &first, const expr_ite &last)
 		auto &&idx = parse_expr(first, last);
 		skip_space(first, last);
 		if (first == last || *first != ']')
-			throw ":-( unclosed '['.";
+			throw ":-( expected '['.";
 		++first;
 		skip_space(first, last);
 		ret = std::make_unique<subscript>(std::move(ret), std::move(idx));
@@ -204,7 +206,7 @@ std::unique_ptr<expr> parse_e3(expr_ite &first, const expr_ite &last)
 	}
 	return std::move(ret);
 }
-std::unique_ptr<expr> parse_expr(expr_ite &first, const expr_ite &last)
+std::unique_ptr<expr> parse_val_expr(expr_ite &first, const expr_ite &last)
 {
 	skip_space(first, last);
 	auto &&ret = parse_e3(first, last);
@@ -222,151 +224,121 @@ std::unique_ptr<expr> parse_expr(expr_ite &first, const expr_ite &last)
 	}
 	return std::move(ret);
 }
-std::unique_ptr<expr> parse_expr(const std::string &expr_str)
+std::unique_ptr<expr> parse_val_expr(const std::string &expr_str)
 {
 	auto first = expr_str.cbegin();
 	const auto last = expr_str.cend();
-	auto &&ret = parse_expr(first, last);
+	auto &&ret = parse_val_expr(first, last);
 	skip_space(first, last);
 	if (first != last)
 		throw "Extra trailing characters.";
 	return std::move(ret);
 }
 
-struct bool_expr
-{
-	virtual ~bool_expr() {}
-	virtual void print(std::ostream &) const = 0;
-};
-std::ostream &operator<< (std::ostream &os, const bool_expr &x)
-{
-	x.print(os);
-	return os;
-}
-struct cmp : bool_expr
+struct cmp : bin_op
 {
 	const enum cmp_op { LT, LE, GT, GE, EQ, NE } op;
-	std::unique_ptr<expr> lc, rc;
 	cmp(cmp_op _op, std::unique_ptr<expr> &&_l, std::unique_ptr<expr> &&_r)
-		: op(_op), lc(std::move(_l)), rc(std::move(_r)) {}
-	void print(std::ostream &os) const
+		: bin_op::bin_op(std::move(_l), std::move(_r)), op(_op) {}
+	const char *op_name() const
 	{
-		os << '{';
 		switch (op)
 		{
 #define op_case(CMP_OP, print)\
 			case CMP_OP:\
-				os << print;\
-				break;
+				return print;
 			op_case(LT, "<")
 			op_case(LE, "<=")
 			op_case(GT, ">")
 			op_case(GE, ">=")
 			op_case(EQ, "==")
 			op_case(NE, "!=")
+#undef op_case
+			default:
+				throw "Invalid cmp_op.";
 		}
-		os << ' ' << *lc << ' ' << *rc << '}';
 	}
 };
-struct bool_and : bool_expr
+struct bool_and : bin_op
 {
-	std::unique_ptr<bool_expr> lc, rc;
-	bool_and(std::unique_ptr<bool_expr> &&_l, std::unique_ptr<bool_expr> &&_r)
-		: lc(std::move(_l)), rc(std::move(_r)) {}
-	void print(std::ostream &os) const
+	using bin_op::bin_op;
+	const char *op_name() const
 	{
-		os << "{and " << *lc << ' ' << *rc << '}';
+		return "and";
 	}
 };
-struct bool_or : bool_expr
+struct bool_or : bin_op
 {
-	std::unique_ptr<bool_expr> lc, rc;
-	bool_or(std::unique_ptr<bool_expr> &&_l, std::unique_ptr<bool_expr> &&_r)
-		: lc(std::move(_l)), rc(std::move(_r)) {}
-	void print(std::ostream &os) const
+	using bin_op::bin_op;
+	const char *op_name() const
 	{
-		os << "{or " << *lc << ' ' << *rc << '}';
+		return "or";
 	}
 };
-/*
- * {B0} ::= {expr} @cmp_op {expr} | ({bool_expr})
- * {B1} ::= {B0} | {B1} && {B0}
- * {bool_expr} ::= {B1} | {B2} || {B1}
- */
-using parse_bool_result = std::pair<std::unique_ptr<bool_expr>, expr_ite>;
-std::unique_ptr<bool_expr> parse_bool_expr(expr_ite &first, const expr_ite &last);
-std::unique_ptr<bool_expr> parse_b0(expr_ite &first, const expr_ite &last)
+std::unique_ptr<expr> parse_expr(expr_ite &first, const expr_ite &last);
+std::unique_ptr<expr> parse_b0(expr_ite &first, const expr_ite &last)
 {
 	skip_space(first, last);
 	if (first == last)
 		throw "bool expression incomplete or missing.";
-	if (*first == '(')
-	{
-		++first;
-		auto &&ret = parse_bool_expr(first, last);
-		if (first < last && *first == ')')
-		{
-			++first;
-			return std::move(ret);
-		}
-		throw ":-( expected ')'";
-	}
-	auto &&expr_1 = parse_expr(first, last);
+	auto &&ret = parse_val_expr(first, last);
 	skip_space(first, last);
-	if (first >= last - 1) // op and another {expr}, at least 2 chars
-		throw "invalid bool expression.";
-	cmp::cmp_op op;
-	switch (*first)
+	while (first <= last - 2) // op and another {expr}, at least 2 chars
 	{
-		case '!':
-			if (*(first + 1) == '=')
-			{
-				op = cmp::NE;
-				first += 2;
-			}
-			else
-				throw "Invalid cmp op.";
-			break;
-		case '=':
-			if (*(first + 1) == '=')
-			{
-				op = cmp::EQ;
-				first += 2;
-			}
-			else
-				throw "Invalid cmp op.";
-			break;
-		case '<':
-			if (*(first + 1) == '=')
-			{
-				op = cmp::LE;
-				first += 2;
-			}
-			else
-			{
-				op = cmp::LT;
-				++first;
-			}
-			break;
-		case '>':
-			if (*(first + 1) == '=')
-			{
-				op = cmp::GE;
-				first += 2;
-			}
-			else
-			{
-				op = cmp::GT;
-				++first;
-			}
-			break;
-		default:
-			throw "Invalid cmp op.";
+		cmp::cmp_op op;
+		switch (*first)
+		{
+			case '!':
+				if (*(first + 1) == '=')
+				{
+					op = cmp::NE;
+					first += 2;
+				}
+				else
+					throw "Invalid cmp op.";
+				break;
+			case '=':
+				if (*(first + 1) == '=')
+				{
+					op = cmp::EQ;
+					first += 2;
+				}
+				else
+					throw "Invalid cmp op.";
+				break;
+			case '<':
+				if (*(first + 1) == '=')
+				{
+					op = cmp::LE;
+					first += 2;
+				}
+				else
+				{
+					op = cmp::LT;
+					++first;
+				}
+				break;
+			case '>':
+				if (*(first + 1) == '=')
+				{
+					op = cmp::GE;
+					first += 2;
+				}
+				else
+				{
+					op = cmp::GT;
+					++first;
+				}
+				break;
+			default:
+				return std::move(ret);
+		}
+		auto &&tmp = parse_val_expr(first, last);
+		ret = std::make_unique<cmp>(op, std::move(ret), std::move(tmp));
 	}
-	auto &&expr_2 = parse_expr(first, last);
-	return std::make_unique<cmp>(op, std::move(expr_1), std::move(expr_2));
+	return std::move(ret);
 }
-std::unique_ptr<bool_expr> parse_b1(expr_ite &first, const expr_ite &last)
+std::unique_ptr<expr> parse_b1(expr_ite &first, const expr_ite &last)
 {
 	auto &&ret = parse_b0(first, last);
 	skip_space(first, last);
@@ -379,7 +351,7 @@ std::unique_ptr<bool_expr> parse_b1(expr_ite &first, const expr_ite &last)
 	}
 	return std::move(ret);
 }
-std::unique_ptr<bool_expr> parse_bool_expr(expr_ite &first, const expr_ite &last)
+std::unique_ptr<expr> parse_expr(expr_ite &first, const expr_ite &last)
 {
 	auto &&ret = parse_b1(first, last);
 	skip_space(first, last);
@@ -393,11 +365,11 @@ std::unique_ptr<bool_expr> parse_bool_expr(expr_ite &first, const expr_ite &last
 	return std::move(ret);
 }
 
-std::unique_ptr<bool_expr> parse_bool_expr(const std::string &expr_str)
+std::unique_ptr<expr> parse_expr(const std::string &expr_str)
 {
 	auto first = expr_str.cbegin();
 	const auto last = expr_str.cend();
-	auto &&ret = parse_bool_expr(first, last);
+	auto &&ret = parse_expr(first, last);
 	skip_space(first, last);
 	if (first != last)
 		throw "Extra trailing characters.";
