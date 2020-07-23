@@ -294,8 +294,8 @@ struct bool_or : bool_expr
  * {bool_expr} ::= {B1} | {B2} || {B1}
  */
 using parse_bool_result = std::pair<std::unique_ptr<bool_expr>, expr_ite>;
-parse_bool_result parse_bool_expr(expr_ite first, const expr_ite &last);
-parse_bool_result parse_b0(expr_ite first, const expr_ite &last)
+std::unique_ptr<bool_expr> parse_bool_expr(expr_ite &first, const expr_ite &last);
+std::unique_ptr<bool_expr> parse_b0(expr_ite &first, const expr_ite &last)
 {
 	skip_space(first, last);
 	if (first == last)
@@ -303,10 +303,12 @@ parse_bool_result parse_b0(expr_ite first, const expr_ite &last)
 	if (*first == '(')
 	{
 		++first;
-		auto ret = parse_bool_expr(first, last);
-		first = ret.second;
+		auto &&ret = parse_bool_expr(first, last);
 		if (first < last && *first == ')')
-			return parse_bool_result(std::move(ret.first), first + 1);
+		{
+			++first;
+			return std::move(ret);
+		}
 		throw ":-( expected ')'";
 	}
 	auto &&expr_1 = parse_expr(first, last);
@@ -361,41 +363,44 @@ parse_bool_result parse_b0(expr_ite first, const expr_ite &last)
 		default:
 			throw "Invalid cmp op.";
 	}
-	auto expr_2 = parse_expr(first, last);
-	return parse_bool_result(std::make_unique<cmp>
-			(op, std::move(expr_1), std::move(expr_2)),
-			first);
+	auto &&expr_2 = parse_expr(first, last);
+	return std::make_unique<cmp>(op, std::move(expr_1), std::move(expr_2));
 }
-parse_bool_result parse_b1(expr_ite first, const expr_ite &last)
+std::unique_ptr<bool_expr> parse_b1(expr_ite &first, const expr_ite &last)
 {
-	auto ret = parse_b0(first, last);
-	first = ret.second;
+	auto &&ret = parse_b0(first, last);
 	skip_space(first, last);
 	while ((first <= last - 2) && *first == '&' && *(first + 1) == '&')
 	{
-		auto tmp = parse_b0(first, last);
-		first = tmp.second;
+		first += 2;
+		auto &&tmp = parse_b0(first, last);
 		skip_space(first, last);
-		ret = parse_bool_result(std::make_unique<bool_and>
-				(std::move(ret.first), std::move(tmp.first)),
-				first);
+		ret = std::make_unique<bool_and>(std::move(ret), std::move(tmp));
 	}
-	return ret;
+	return std::move(ret);
 }
-parse_bool_result parse_bool_expr(expr_ite first, const expr_ite &last)
+std::unique_ptr<bool_expr> parse_bool_expr(expr_ite &first, const expr_ite &last)
 {
-	auto ret = parse_b1(first, last);
-	first = ret.second;
+	auto &&ret = parse_b1(first, last);
 	skip_space(first, last);
 	while ((first <= last - 2) && *first == '|' && *(first + 1) == '|')
 	{
-		auto tmp = parse_b1(first, last);
-		first = tmp.second;
+		first += 2;
+		auto &&tmp = parse_b1(first, last);
 		skip_space(first, last);
-		ret = parse_bool_result(std::make_unique<bool_or>
-				(std::move(ret.first), std::move(tmp.first)),
-				first);
+		ret = std::make_unique<bool_or>(std::move(ret), std::move(tmp));
 	}
-	return ret;
+	return std::move(ret);
+}
+
+std::unique_ptr<bool_expr> parse_bool_expr(const std::string &expr_str)
+{
+	auto first = expr_str.cbegin();
+	const auto last = expr_str.cend();
+	auto &&ret = parse_bool_expr(first, last);
+	skip_space(first, last);
+	if (first != last)
+		throw "Extra trailing characters.";
+	return std::move(ret);
 }
 }
