@@ -1,0 +1,3 @@
+{and {< {imm 1} {imm 2}} {< {imm 2} {imm 3}}}
+{and {< {imm 1} {imm 2}} {< {imm 2} {imm 3}}}
+{< {mul {imm 1} {imm 2}} {imm 3}}
