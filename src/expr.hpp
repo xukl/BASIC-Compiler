@@ -1,3 +1,5 @@
+#ifndef EXPR_HPP
+#define EXPR_HPP
 #include <ostream>
 #include <string>
 #include <utility>
@@ -376,3 +378,4 @@ std::unique_ptr<expr> parse_expr(const std::string &expr_str)
 	return std::move(ret);
 }
 }
+#endif
