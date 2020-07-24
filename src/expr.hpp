@@ -117,7 +117,17 @@ id parse_id(expr_ite &first, const expr_ite &last)
 		++first;
 	return std::string(name_begin, first);
 }
-imm_num parse_unsigned_num(expr_ite &first, const expr_ite &last)
+id parse_id(const std::string &id_str)
+{
+	auto first = id_str.cbegin();
+	const auto last = id_str.cend();
+	auto &&ret = parse_id(first, last);
+	skip_space(first, last);
+	if (first != last)
+		throw "Extra trailing characters.";
+	return std::move(ret);
+}
+value_type parse_unsigned_num(expr_ite &first, const expr_ite &last)
 {
 	skip_space(first, last);
 	value_type value = 0;
@@ -126,7 +136,17 @@ imm_num parse_unsigned_num(expr_ite &first, const expr_ite &last)
 		value = value * 10 + *first - '0';
 		++first;
 	}
-	return imm_num(value);
+	return value;
+}
+value_type parse_unsigned_num(const std::string &num_str)
+{
+	auto first = num_str.cbegin();
+	const auto last = num_str.cend();
+	auto &&ret = parse_unsigned_num(first, last);
+	skip_space(first, last);
+	if (first != last)
+		throw "Extra trailing characters.";
+	return std::move(ret);
 }
 std::unique_ptr<expr> parse_e0(expr_ite &first, const expr_ite &last)
 {
