@@ -217,7 +217,7 @@ program_type read_program(std::istream &is)
 }
 void print_program(std::ostream &os, const program_type &prog)
 {
-	for (auto &&[line, sent] : prog)
+	for (const auto &[line, sent] : prog)
 		os << '#' << line << ":\t" << *sent << std::endl;
 }
 }
