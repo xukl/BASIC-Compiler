@@ -209,6 +209,8 @@ program_type read_program(std::istream &is)
 			throw "Unknown token.";
 		attemp_insert.first->second = std::move(sentence);
 	}
+	if (!is.eof())
+		throw "Error when reading program. Probably caused by missing line number.";
 	if (!FOR_stack.empty())
 		throw "Unpaired \"FOR\".";
 	return ret;

@@ -72,18 +72,8 @@ STRUCT_BIN(add)
 STRUCT_BIN(sub)
 STRUCT_BIN(mul)
 STRUCT_BIN(div)
+STRUCT_BIN(subscript)
 #undef STRUCT_BIN
-struct subscript : expr
-{
-	std::unique_ptr<expr> arr;
-	std::unique_ptr<expr> idx;
-	subscript(std::unique_ptr<expr> &&_arr, std::unique_ptr<expr> &&_idx)
-		: arr(std::move(_arr)), idx(std::move(_idx)) {}
-	void print(std::ostream &os) const
-	{
-		os << "{subscript " << *arr << ' ' << *idx << '}';
-	}
-};
 struct neg : unary_op
 {
 	using unary_op::unary_op;
