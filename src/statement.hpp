@@ -10,6 +10,7 @@
 #include <memory>
 #include <limits>
 #include <utility>
+#include <climits>
 namespace statement
 {
 using line_num = unsigned;
@@ -197,6 +198,7 @@ struct END_FOR : statement
 	}
 };
 using program_type = std::map<line_num, std::unique_ptr<statement>>;
+const int additional_exit_line = INT_MAX;
 program_type read_program(std::istream &is)
 {
 	std::map<line_num, std::unique_ptr<statement>> ret;
@@ -242,7 +244,7 @@ program_type read_program(std::istream &is)
 				throw "Extra trailing characters.";
 			if (FOR_stack.empty())
 				throw "Unpaired \"END FOR\".";
-			auto FOR_info = std::move(FOR_stack.top());
+			auto &&FOR_info = FOR_stack.top();
 			ret[FOR_info.first] = std::make_unique<FOR>(FOR_info.second, line);
 			sentence = std::make_unique<END_FOR>(FOR_info.first);
 			FOR_stack.pop();
@@ -255,6 +257,9 @@ program_type read_program(std::istream &is)
 		throw "Error when reading program. Probably caused by missing line number.";
 	if (!FOR_stack.empty())
 		throw "Unpaired \"FOR\".";
+	if (ret.count(INT_MAX) != 0)
+		throw ":-( Line number too big.";
+	ret[additional_exit_line] = std::make_unique<EXIT>("0");
 	return ret;
 }
 void print_program(std::ostream &os, const program_type &prog)
