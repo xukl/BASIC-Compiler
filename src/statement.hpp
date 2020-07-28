@@ -75,7 +75,8 @@ struct INPUT : statement
 		for (size_t pos = 0, nxt_pos = str.find(',');
 				pos != str.npos;
 				pos = nxt_pos, nxt_pos = str.find(',', pos + 1))
-			inputs.push_back(expr::parse_expr(str.substr(pos, nxt_pos - pos)));
+			inputs.push_back
+				(expr::parse_expr(str.substr(pos + 1, nxt_pos - pos - 1)));
 	}
 	void print(std::ostream &os) const
 	{
