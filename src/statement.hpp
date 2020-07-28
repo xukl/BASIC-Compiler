@@ -13,7 +13,7 @@
 #include <climits>
 namespace statement
 {
-using line_num = unsigned;
+using line_num = int;
 struct statement
 {
 	virtual ~statement() {}
