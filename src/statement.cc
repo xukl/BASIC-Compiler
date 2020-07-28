@@ -75,7 +75,8 @@ program_type read_program(std::istream &is)
 		throw "Unpaired \"FOR\".";
 	if (ret.count(INT_MAX) != 0)
 		throw ":-( Line number too big.";
-	ret[additional_exit_line] = std::make_unique<EXIT>("0");
+	ret[additional_exit_line]
+		= std::make_unique<EXIT>(std::make_unique<expr::imm_num>(0));
 	return ret;
 }
 void print_program(std::ostream &os, const program_type &prog)
