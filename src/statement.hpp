@@ -17,6 +17,7 @@ struct statement
 {
 	virtual ~statement() {}
 	virtual void print(std::ostream &) const = 0;
+	virtual std::unique_ptr<statement> deep_copy() const = 0;
 };
 std::ostream &operator<< (std::ostream &os, const statement &x)
 {
@@ -28,6 +29,10 @@ struct REM : statement
 	void print(std::ostream &os) const
 	{
 		os << "{rem}";
+	}
+	std::unique_ptr<statement> deep_copy() const
+	{
+		return std::make_unique<REM>();
 	}
 };
 struct assignment
@@ -49,6 +54,10 @@ struct assignment
 	{
 		os << "{assign " << *var << " <- " << *val << '}';
 	}
+	assignment copy() const
+	{
+		return assignment(var->deep_copy(), val->deep_copy());
+	}
 };
 std::ostream &operator<< (std::ostream &os, const assignment &x)
 {
@@ -63,6 +72,10 @@ struct LET : statement
 	void print(std::ostream &os) const
 	{
 		assign.print(os);
+	}
+	std::unique_ptr<statement> deep_copy() const
+	{
+		return std::make_unique<LET>(assign.copy());
 	}
 };
 struct INPUT : statement
@@ -85,6 +98,13 @@ struct INPUT : statement
 			os << ' ' << *x;
 		os << '}';
 	}
+	std::unique_ptr<statement> deep_copy() const
+	{
+		decltype(inputs) tmp_inputs;
+		for (const auto &e : inputs)
+			tmp_inputs.push_back(e->deep_copy());
+		return std::make_unique<INPUT>(std::move(tmp_inputs));
+	}
 };
 struct EXIT : statement
 {
@@ -95,6 +115,10 @@ struct EXIT : statement
 	{
 		os << "{exit " << *val << '}';
 	}
+	std::unique_ptr<statement> deep_copy() const
+	{
+		return std::make_unique<EXIT>(val->deep_copy());
+	}
 };
 struct GOTO : statement
 {
@@ -104,6 +128,10 @@ struct GOTO : statement
 	void print(std::ostream &os) const
 	{
 		os << "{goto " << line << '}';
+	}
+	std::unique_ptr<statement> deep_copy() const
+	{
+		return std::make_unique<GOTO>(line);
 	}
 };
 struct IF : statement
@@ -123,6 +151,10 @@ struct IF : statement
 	void print(std::ostream &os) const
 	{
 		os << "{if_goto " << *condition << ' ' << line << '}';
+	}
+	std::unique_ptr<statement> deep_copy() const
+	{
+		return std::make_unique<IF>(condition->deep_copy(), line);
 	}
 };
 struct FOR : statement
@@ -145,6 +177,11 @@ struct FOR : statement
 		os << "{for (; " << *condition << "; " << step_statement << ")"
 			" end_for at line " << end_for_line << '}';
 	}
+	std::unique_ptr<statement> deep_copy() const
+	{
+		return std::make_unique<FOR>
+			(condition->deep_copy(), step_statement.copy(), end_for_line);
+	}
 };
 struct END_FOR : statement
 {
@@ -153,6 +190,10 @@ struct END_FOR : statement
 	void print(std::ostream &os) const
 	{
 		os << "{end_for of {for} at line " << for_line << '}';
+	}
+	std::unique_ptr<statement> deep_copy() const
+	{
+		return std::make_unique<END_FOR>(for_line);
 	}
 };
 using program_type = std::map<line_num, std::unique_ptr<statement>>;

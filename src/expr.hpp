@@ -13,6 +13,7 @@ struct expr
 {
 	virtual ~expr() {}
 	virtual void print(std::ostream &) const = 0;
+	virtual std::unique_ptr<expr> deep_copy() const = 0;
 };
 std::ostream &operator<< (std::ostream &os, const expr &x)
 {
@@ -49,6 +50,10 @@ struct id : expr
 	{
 		os << "{var " << id_name << '}';
 	}
+	std::unique_ptr<expr> deep_copy() const
+	{
+		return std::make_unique<id>(id_name);
+	}
 };
 struct imm_num : expr
 {
@@ -58,6 +63,10 @@ struct imm_num : expr
 	{
 		os << "{imm " << value << '}';
 	}
+	std::unique_ptr<expr> deep_copy() const
+	{
+		return std::make_unique<imm_num>(value);
+	}
 };
 #define STRUCT_BIN(name)\
 struct name : bin_op\
@@ -66,6 +75,10 @@ struct name : bin_op\
 	const char *op_name() const\
 	{\
 		return #name;\
+	}\
+	std::unique_ptr<expr> deep_copy() const\
+	{\
+		return std::make_unique<name>(lc->deep_copy(), rc->deep_copy());\
 	}\
 };
 STRUCT_BIN(add)
@@ -80,6 +93,10 @@ struct neg : unary_op
 	const char *op_name() const
 	{
 		return "neg";
+	}
+	std::unique_ptr<expr> deep_copy() const
+	{
+		return std::make_unique<neg>(c->deep_copy());
 	}
 };
 
@@ -270,6 +287,10 @@ struct cmp : bin_op
 				throw "Invalid cmp_op.";
 		}
 	}
+	std::unique_ptr<expr> deep_copy() const
+	{
+		return std::make_unique<cmp>(op, lc->deep_copy(), rc->deep_copy());
+	}
 };
 struct bool_and : bin_op
 {
@@ -278,6 +299,10 @@ struct bool_and : bin_op
 	{
 		return "and";
 	}
+	std::unique_ptr<expr> deep_copy() const
+	{
+		return std::make_unique<bool_and>(lc->deep_copy(), rc->deep_copy());
+	}
 };
 struct bool_or : bin_op
 {
@@ -285,6 +310,10 @@ struct bool_or : bin_op
 	const char *op_name() const
 	{
 		return "or";
+	}
+	std::unique_ptr<expr> deep_copy() const
+	{
+		return std::make_unique<bool_and>(lc->deep_copy(), rc->deep_copy());
 	}
 };
 std::unique_ptr<expr> parse_expr(expr_ite &first, const expr_ite &last);
