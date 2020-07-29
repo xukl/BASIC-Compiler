@@ -1,49 +1,7 @@
-#include "basic_block.hpp"
-#include <map>
-#include <set>
+#include "translate.hpp"
 #include <typeinfo>
 namespace translate
 {
-enum class inst_op { ADD, SUB, MUL, DIV, ADDI, LUI, ORI, LW, SW, JAL, INPUT, EXIT, AND, OR, SLTIU, SLT, BEQ, BNE, XORI };
-struct instruction
-{
-	inst_op op;
-	int rs1, rs2, imm, rd;
-};
-const int zero = 0, sp = 2, t0 = 5, t1 = 6, t2 = 7;
-const static int REAL_REG = 32;
-struct virtual_reg
-{
-	int virtual_reg_cnt, memory_reg_end;
-	std::set<int> aval_reg;
-	std::map<std::string, int> reg_map;
-	virtual_reg() : virtual_reg_cnt(REAL_REG), memory_reg_end(REAL_REG)
-	{
-		for (int i = 10; i < REAL_REG; ++i)
-			aval_reg.insert(i);
-	}
-	void preserve_var(const std::string &var_name, int elements)
-	{
-		reg_map[var_name] = memory_reg_end;
-		virtual_reg_cnt += elements;
-		memory_reg_end += elements;
-	}
-	int allocate_reg()
-	{
-		if (aval_reg.empty())
-			return ++virtual_reg_cnt;
-		auto aval_it = aval_reg.begin();
-		int ret = *aval_it;
-		aval_reg.erase(aval_it);
-		return ret;
-	}
-	void deallocate_reg(int reg)
-	{
-		if ((reg >= 10 && reg < REAL_REG) || reg > memory_reg_end)
-			aval_reg.insert(reg);
-	}
-};
-const int UNDETERMINED_REG = -1;
 std::vector<instruction>
 convert_val_expr(const std::unique_ptr<expr::expr> &e, int &target,
 		virtual_reg &regs)
@@ -116,7 +74,7 @@ convert_val_expr(const std::unique_ptr<expr::expr> &e, int &target,
 		regs.deallocate_reg(rhs);
 	}
 	if (ans != target)
-		ret.push_back(instruction{inst_op::SW, sp, ans, -target, 0});
+		ret.push_back(instruction{inst_op::SW, sp, ans, -4 * target, 0});
 	return ret;
 }
 std::vector<instruction>
@@ -190,7 +148,7 @@ convert_bool_expr(const std::unique_ptr<expr::expr> &e, int &target,
 	else
 		ret.push_back(instruction{inst_op::OR, lhs, rhs, 0, ans});
 	if (ans != target)
-		ret.push_back(instruction{inst_op::SW, sp, ans, -target, 0});
+		ret.push_back(instruction{inst_op::SW, sp, ans, -4 * target, 0});
 	regs.deallocate_reg(lhs);
 	regs.deallocate_reg(rhs);
 	return ret;
