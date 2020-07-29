@@ -5,7 +5,6 @@
 #include <map>
 #include <set>
 #include <vector>
-#include <cassert>
 namespace translate
 {
 enum class inst_op { ADD, SUB, MUL, DIV, ADDI, LUI, ORI, LW, SW, JAL, INPUT, EXIT, AND, OR, SLTIU, SLT, BEQ, BNE, XORI };
@@ -43,21 +42,23 @@ struct instruction
 				os << #op_type << " x" << rd << ", " << imm;\
 				break;
 			R_case(ADD)R_case(SUB)R_case(MUL)R_case(DIV)R_case(AND)R_case(OR)R_case(SLT)
-			I_case(ADDI)I_case(ORI)I_case(INPUT)I_case(EXIT)I_case(SLTIU)I_case(XORI)
+			I_case(ADDI)I_case(ORI)I_case(SLTIU)I_case(XORI)
 			S_case(SW)
 			B_case(BEQ)B_case(BNE)
 			U_case(LUI)
 			J_case(JAL)
+			case inst_op::INPUT:
+				os << "INPUT";
+				break;
+			case inst_op::EXIT:
+				os << "EXIT";
+				break;
 			case inst_op::LW:
 				os << "LW x" << rd << ", " << imm << "(x" << rs1 << ")";
 		}
 	}
 };
-std::ostream &operator<< (std::ostream &os, const instruction &x)
-{
-	x.print(os);
-	return os;
-}
+std::ostream &operator<< (std::ostream &os, const instruction &x);
 const int zero = 0, sp = 2, t0 = 5, t1 = 6, t2 = 7, a0 = 10, a1 = 11;
 const static int REAL_REG = 32;
 struct virtual_reg
@@ -82,7 +83,6 @@ struct virtual_reg
 	}
 	void preserve_reg(int reg)
 	{
-		assert(aval_reg.count(reg) != 0);
 		aval_reg.erase(reg);
 	}
 	int allocate_reg()
@@ -111,13 +111,7 @@ struct obj_code_block
 		jump_true(j_true), jump_false(j_false) {}
 };
 using obj_code = std::map<int, obj_code_block>;
-obj_code trarnslate_to_obj_code(const basic_block::cfg_type &cfg);
-const int UNDETERMINED_REG = -1;
-std::vector<instruction>
-convert_val_expr(const std::unique_ptr<expr::expr> &e, int &target,
-		virtual_reg &regs);
-std::vector<instruction>
-convert_bool_expr(const std::unique_ptr<expr::expr> &e, int &target,
-		virtual_reg &regs);
+obj_code translate_to_obj_code(const basic_block::cfg_type &cfg);
+void print_obj_code_block(std::ostream &os, const obj_code &code);
 }
 #endif

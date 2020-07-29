@@ -2,6 +2,24 @@
 #include <typeinfo>
 namespace translate
 {
+std::ostream &operator<< (std::ostream &os, const instruction &x)
+{
+	x.print(os);
+	return os;
+}
+inline constexpr instruction inst_mem_2_reg(int mem, int reg)
+{
+	return instruction{inst_op::LW, sp, 0, -4 * (mem - REAL_REG + 1), reg};
+}
+inline constexpr instruction inst_reg_2_reg(int rs, int rd)
+{
+	return instruction{inst_op::ADDI, rs, 0, 0, rd};
+}
+inline constexpr instruction inst_reg_2_mem(int reg, int mem)
+{
+	return instruction{inst_op::SW, sp, reg, -4 * (mem - REAL_REG + 1), 0};
+}
+const int UNDETERMINED_REG = -1;
 std::vector<instruction>
 convert_val_expr(const std::unique_ptr<expr::expr> &e, int &target,
 		virtual_reg &regs)
@@ -15,15 +33,28 @@ convert_val_expr(const std::unique_ptr<expr::expr> &e, int &target,
 		throw "subscript is not supported yet.";
 	if (type == typeid(expr::id))
 	{
-		const std::string &var = static_cast<expr::id&>(*e).id_name;
+		const auto &var = static_cast<expr::id&>(*e).id_name;
 		if (regs.reg_map.count(var) == 0)
 			throw "Unknown identifier.";
-		target = regs.reg_map[var];
-		return {};
+		int mem_addr = regs.reg_map[var];
+		if (target == UNDETERMINED_REG)
+		{
+			target = mem_addr;
+			return {};
+		}
+		else
+		{
+			regs.preserve_reg(target);
+			if (target < REAL_REG)
+				return { inst_mem_2_reg(mem_addr, target) };
+			else
+				return {
+					inst_mem_2_reg(mem_addr, t0),
+					inst_reg_2_mem(t0, target)
+				};
+		}
 	}
-	if (target == UNDETERMINED_REG)
-		target = regs.allocate_reg();
-	int ans = (target < REAL_REG ? target : t2);
+	int ans = (target >= 0 && target < REAL_REG ? target : t2);
 	std::vector<instruction> ret;
 	if (type == typeid(expr::imm_num))
 	{
@@ -39,28 +70,26 @@ convert_val_expr(const std::unique_ptr<expr::expr> &e, int &target,
 	}
 	else if (type == typeid(expr::neg))
 	{
-		const expr::neg &neg_expr = static_cast<expr::neg&>(*e);
+		const auto &neg_expr = static_cast<expr::neg&>(*e);
 		ret = convert_val_expr(neg_expr.c, ans, regs);
 		ret.push_back(instruction{inst_op::SUB, zero, ans, 0, ans});
 	}
 	else
 	{
-		const expr::bin_op &bin_expr = static_cast<expr::bin_op&>(*e);
+		const auto &bin_expr = static_cast<expr::bin_op&>(*e);
 		int lhs = UNDETERMINED_REG, rhs = UNDETERMINED_REG;
 		ret = convert_val_expr(bin_expr.lc, lhs, regs);
 		auto &&ret_rhs = convert_val_expr(bin_expr.rc, rhs, regs);
 		ret.insert(ret.end(), ret_rhs.begin(), ret_rhs.end());
 		if (lhs >= REAL_REG)
 		{
-			ret.push_back(instruction{inst_op::LW, sp, 0,
-					-4 * (lhs - REAL_REG + 1), t0});
+			ret.push_back(inst_mem_2_reg(lhs, t0));
 			regs.deallocate_reg(lhs);
 			lhs = t0;
 		}
 		if (rhs >= REAL_REG)
 		{
-			ret.push_back(instruction{inst_op::LW, sp, 0,
-					-4 * (rhs - REAL_REG + 1), t1});
+			ret.push_back(inst_mem_2_reg(rhs, t1));
 			regs.deallocate_reg(rhs);
 			rhs = t1;
 		}
@@ -76,23 +105,28 @@ convert_val_expr(const std::unique_ptr<expr::expr> &e, int &target,
 		regs.deallocate_reg(rhs);
 	}
 	if (ans != target)
-		ret.push_back(instruction{inst_op::SW, sp, ans,
-				-4 * (target - REAL_REG + 1), 0});
+	{
+		if (target == UNDETERMINED_REG)
+			target = regs.allocate_reg();
+		if (target >= REAL_REG)
+			ret.push_back(inst_reg_2_mem(ans, target));
+		else
+			ret.push_back(inst_reg_2_reg(ans, target));
+	}
+	regs.preserve_reg(target);
 	return ret;
 }
 std::vector<instruction>
 convert_bool_expr(const std::unique_ptr<expr::expr> &e, int &target,
 		virtual_reg &regs)
 {
-	if (target == UNDETERMINED_REG)
-		target = regs.allocate_reg();
-	int ans = (target < REAL_REG ? target : t2);
+	int ans = (target >= 0 && target < REAL_REG ? target : t2);
 	const auto &type = typeid(*e);
 	if (type != typeid(expr::cmp)
 			&& type != typeid(expr::bool_and)
 			&& type != typeid(expr::bool_or))
 		throw "Error when convert_bool_expr: get val expr where bool expr is expected.";
-	const expr::bin_op &bin_expr = static_cast<expr::bin_op&>(*e);
+	const auto &bin_expr = static_cast<expr::bin_op&>(*e);
 	std::vector<instruction> ret, ret_rhs;
 	int lhs = UNDETERMINED_REG, rhs = UNDETERMINED_REG;
 	if (type == typeid(expr::cmp))
@@ -108,21 +142,19 @@ convert_bool_expr(const std::unique_ptr<expr::expr> &e, int &target,
 	ret.insert(ret.end(), ret_rhs.begin(), ret_rhs.end());
 	if (lhs >= REAL_REG)
 	{
-		ret.push_back(instruction{inst_op::LW, sp, 0,
-				-4 * (lhs - REAL_REG + 1), t0});
+		ret.push_back(inst_mem_2_reg(lhs, t0));
 		regs.deallocate_reg(lhs);
 		lhs = t0;
 	}
 	if (rhs >= REAL_REG)
 	{
-		ret.push_back(instruction{inst_op::LW, sp, 0,
-				-4 * (rhs - REAL_REG + 1), t1});
+		ret.push_back(inst_mem_2_reg(rhs, t1));
 		regs.deallocate_reg(rhs);
 		rhs = t1;
 	}
 	if (type == typeid(expr::cmp))
 	{
-		const expr::cmp &cmp_expr = static_cast<expr::cmp&>(*e);
+		const auto &cmp_expr = static_cast<expr::cmp&>(*e);
 		switch (cmp_expr.op)
 		{
 			case expr::cmp::LT:
@@ -152,14 +184,21 @@ convert_bool_expr(const std::unique_ptr<expr::expr> &e, int &target,
 		ret.push_back(instruction{inst_op::AND, lhs, rhs, 0, ans});
 	else
 		ret.push_back(instruction{inst_op::OR, lhs, rhs, 0, ans});
-	if (ans != target)
-		ret.push_back(instruction{inst_op::SW, sp, ans,
-				-4 * (target - REAL_REG + 1), 0});
 	regs.deallocate_reg(lhs);
 	regs.deallocate_reg(rhs);
+	if (ans != target)
+	{
+		if (target == UNDETERMINED_REG)
+			target = regs.allocate_reg();
+		if (target >= REAL_REG)
+			ret.push_back(inst_reg_2_mem(ans, target));
+		else
+			ret.push_back(inst_reg_2_reg(ans, target));
+	}
+	regs.preserve_reg(target);
 	return ret;
 }
-obj_code trarnslate_to_obj_code(const basic_block::cfg_type &cfg)
+obj_code translate_to_obj_code(const basic_block::cfg_type &cfg)
 {
 	virtual_reg reg_map;
 	obj_code ret;
@@ -168,11 +207,11 @@ obj_code trarnslate_to_obj_code(const basic_block::cfg_type &cfg)
 		std::vector<instruction> inst;
 		for (const auto &sent : block.commands)
 		{
-			const auto &type = typeid(sent);
+			const auto &type = typeid(*sent);
 			std::vector<instruction> sent_inst;
 			if (type == typeid(statement::LET))
 			{
-				const statement::assignment &assign =
+				const auto &assign =
 					static_cast<statement::LET&>(*sent).assign;
 				if (typeid(*(assign.val)) == typeid(expr::subscript))
 					throw "subscript is not supported yet.";
@@ -198,15 +237,13 @@ obj_code trarnslate_to_obj_code(const basic_block::cfg_type &cfg)
 					sent_inst.insert(sent_inst.end(), {
 						instruction{inst_op::ADDI, zero, 0, CALL_READ, a0},
 						instruction{inst_op::INPUT, 0, 0, 0, 0},
-						instruction{inst_op::SW, sp, a0,
-							-4 * (mem_reg - REAL_REG + 1), 0}
+						inst_reg_2_mem(a0, mem_reg)
 					});
 				}
 			}
 			else if (type == typeid(statement::EXIT))
 			{
 				int exit_val_reg = a1;
-				reg_map.preserve_reg(a1);
 				sent_inst = convert_val_expr
 					(static_cast<statement::EXIT&>(*sent).val,
 						exit_val_reg, reg_map);
@@ -219,7 +256,6 @@ obj_code trarnslate_to_obj_code(const basic_block::cfg_type &cfg)
 			else if (type == typeid(statement::IF))
 			{
 				int branch_flag = a0;
-				reg_map.preserve_reg(a0);
 				sent_inst = convert_bool_expr
 					(static_cast<statement::IF&>(*sent).condition,
 						branch_flag, reg_map);
@@ -228,7 +264,6 @@ obj_code trarnslate_to_obj_code(const basic_block::cfg_type &cfg)
 			else if (type == typeid(statement::FOR))
 			{
 				int branch_flag = a0;
-				reg_map.preserve_reg(a0);
 				sent_inst = convert_bool_expr
 					(static_cast<statement::FOR&>(*sent).condition,
 						branch_flag, reg_map);
@@ -236,7 +271,7 @@ obj_code trarnslate_to_obj_code(const basic_block::cfg_type &cfg)
 			}
 			else if (type == typeid(statement::END_FOR))
 			{
-				const statement::assignment &assign =
+				const auto &assign =
 					static_cast<statement::END_FOR&>(*sent).step_statement;
 				if (typeid(*(assign.val)) == typeid(expr::subscript))
 					throw "subscript is not supported yet.";
@@ -249,11 +284,29 @@ obj_code trarnslate_to_obj_code(const basic_block::cfg_type &cfg)
 			else
 			{
 			}
+			inst.insert(inst.end(), sent_inst.begin(), sent_inst.end());
 		}
-		ret.emplace(line,
-				obj_code_block(std::move(inst), block.condition->deep_copy(),
-					block.jump_true, block.jump_false));
+		ret.emplace(line, obj_code_block(std::move(inst),
+				block.condition == nullptr
+					? nullptr
+					: block.condition->deep_copy(),
+				block.jump_true, block.jump_false));
 	}
 	return ret;
+}
+void print_obj_code_block(std::ostream &os, const obj_code &code)
+{
+	for (const auto &[line, block] : code)
+	{
+		os << "{\n  block #" << line << "\n  jump to (";
+		if (block.condition == nullptr)
+			os << "(true)";
+		else
+			os << *(block.condition);
+		os << " ? " << block.jump_true << " : " << block.jump_false << ")\n";
+		for (const auto &inst : block.instructions)
+			os << '\t' << inst << '\n';
+		os << '}' << std::endl;
+	}
 }
 }
