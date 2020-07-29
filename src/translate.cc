@@ -52,13 +52,15 @@ convert_val_expr(const std::unique_ptr<expr::expr> &e, int &target,
 		ret.insert(ret.end(), ret_rhs.begin(), ret_rhs.end());
 		if (lhs >= REAL_REG)
 		{
-			ret.push_back(instruction{inst_op::LW, sp, 0, -lhs, t0});
+			ret.push_back(instruction{inst_op::LW, sp, 0,
+					-4 * (lhs - REAL_REG + 1), t0});
 			regs.deallocate_reg(lhs);
 			lhs = t0;
 		}
 		if (rhs >= REAL_REG)
 		{
-			ret.push_back(instruction{inst_op::LW, sp, 0, -rhs, t1});
+			ret.push_back(instruction{inst_op::LW, sp, 0,
+					-4 * (rhs - REAL_REG + 1), t1});
 			regs.deallocate_reg(rhs);
 			rhs = t1;
 		}
@@ -74,7 +76,8 @@ convert_val_expr(const std::unique_ptr<expr::expr> &e, int &target,
 		regs.deallocate_reg(rhs);
 	}
 	if (ans != target)
-		ret.push_back(instruction{inst_op::SW, sp, ans, -4 * target, 0});
+		ret.push_back(instruction{inst_op::SW, sp, ans,
+				-4 * (target - REAL_REG + 1), 0});
 	return ret;
 }
 std::vector<instruction>
@@ -105,13 +108,15 @@ convert_bool_expr(const std::unique_ptr<expr::expr> &e, int &target,
 	ret.insert(ret.end(), ret_rhs.begin(), ret_rhs.end());
 	if (lhs >= REAL_REG)
 	{
-		ret.push_back(instruction{inst_op::LW, sp, 0, -lhs, t0});
+		ret.push_back(instruction{inst_op::LW, sp, 0,
+				-4 * (lhs - REAL_REG + 1), t0});
 		regs.deallocate_reg(lhs);
 		lhs = t0;
 	}
 	if (rhs >= REAL_REG)
 	{
-		ret.push_back(instruction{inst_op::LW, sp, 0, -rhs, t1});
+		ret.push_back(instruction{inst_op::LW, sp, 0,
+				-4 * (rhs - REAL_REG + 1), t1});
 		regs.deallocate_reg(rhs);
 		rhs = t1;
 	}
@@ -148,7 +153,8 @@ convert_bool_expr(const std::unique_ptr<expr::expr> &e, int &target,
 	else
 		ret.push_back(instruction{inst_op::OR, lhs, rhs, 0, ans});
 	if (ans != target)
-		ret.push_back(instruction{inst_op::SW, sp, ans, -4 * target, 0});
+		ret.push_back(instruction{inst_op::SW, sp, ans,
+				-4 * (target - REAL_REG + 1), 0});
 	regs.deallocate_reg(lhs);
 	regs.deallocate_reg(rhs);
 	return ret;
