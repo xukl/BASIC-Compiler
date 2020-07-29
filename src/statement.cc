@@ -61,8 +61,10 @@ program_type read_program(std::istream &is)
 			if (FOR_stack.empty())
 				throw "Unpaired \"END FOR\".";
 			auto &&FOR_info = FOR_stack.top();
-			ret[FOR_info.first] = std::make_unique<FOR>(FOR_info.second, line);
-			sentence = std::make_unique<END_FOR>(FOR_info.first);
+			const auto &str = FOR_info.second;
+			ret[FOR_info.first] = std::make_unique<FOR>(str, line);
+			sentence = std::make_unique<END_FOR>(FOR_info.first,
+					assignment(std::string(str, 0, str.find(';'))));
 			FOR_stack.pop();
 		}
 		else

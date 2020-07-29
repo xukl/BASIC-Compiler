@@ -149,40 +149,37 @@ struct IF : statement
 struct FOR : statement
 {
 	std::unique_ptr<expr::expr> condition;
-	assignment step_statement;
 	line_num end_for_line;
-	FOR(std::unique_ptr<expr::expr> &&_cond,
-			assignment &&step,
-			const line_num &_end_for_line)
-		: condition(std::move(_cond)), step_statement(std::move(step)),
-		end_for_line(_end_for_line) {}
+	FOR(std::unique_ptr<expr::expr> &&_cond, const line_num &_end_for_line)
+		: condition(std::move(_cond)), end_for_line(_end_for_line) {}
 	FOR(const std::string &str, const line_num &_end_for_line)
 		: condition(expr::parse_expr(std::string(str, str.find(';') + 1))),
-		step_statement(std::string(str, 0, str.find(';'))),
 		end_for_line(_end_for_line)
 	{}
 	void print(std::ostream &os) const
 	{
-		os << "{for (; " << *condition << "; " << step_statement << ")"
+		os << "{for while (" << *condition << "),"
 			" end_for at line " << end_for_line << '}';
 	}
 	std::unique_ptr<statement> deep_copy() const
 	{
-		return std::make_unique<FOR>
-			(condition->deep_copy(), step_statement.copy(), end_for_line);
+		return std::make_unique<FOR>(condition->deep_copy(), end_for_line);
 	}
 };
 struct END_FOR : statement
 {
 	line_num for_line;
-	END_FOR(const line_num &_for_line) : for_line(_for_line) {}
+	assignment step_statement;
+	END_FOR(const line_num &_for_line, assignment &&step)
+		: for_line(_for_line), step_statement(std::move(step)) {}
 	void print(std::ostream &os) const
 	{
-		os << "{end_for of {for} at line " << for_line << '}';
+		os << "{end_for of {for} at line " << for_line
+			<< ", step_statement " << step_statement << '}';
 	}
 	std::unique_ptr<statement> deep_copy() const
 	{
-		return std::make_unique<END_FOR>(for_line);
+		return std::make_unique<END_FOR>(for_line, step_statement.copy());
 	}
 };
 using program_type = std::map<line_num, std::unique_ptr<statement>>;
