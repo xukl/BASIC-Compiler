@@ -10,7 +10,7 @@ namespace basic_block
 {
 struct simple_block
 {
-	int back_line_num;
+	std::vector<statement::line_num> lines;
 	int in_edge_cnt, out_edge_cnt;
 	int out_edge[2];
 };
@@ -20,16 +20,20 @@ inline void add_edge_to(num_cfg_type &m, int u, int v)
 	m[u].out_edge[m[u].out_edge_cnt++] = v;
 	++m[v].in_edge_cnt;
 }
-num_cfg_type::iterator remove_sent(num_cfg_type &m, int x)
+num_cfg_type::iterator
+remove_sent(num_cfg_type &m, int x, const program_type &prog)
 {
 	if (x != statement::additional_exit_line)
 		std::clog << "Warning: unreachable code at line " << x << std::endl;
+	if (typeid(*(prog.at(x))) == typeid(statement::LET))
+		std::clog << "Warning: remove unreachable LET. It may cause error."
+			<< std::endl;
 	for (int i = 0; i < m[x].out_edge_cnt; ++i)
 	{
 		auto v = m[x].out_edge[i];
 		auto &v_in_cnt = m[v].in_edge_cnt;
 		if (--v_in_cnt == 0)
-			remove_sent(m, v);
+			remove_sent(m, v, prog);
 	}
 	return m.erase(m.find(x));
 }
@@ -42,7 +46,7 @@ num_cfg_type gen_num_cfg(const program_type &prog)
 	{
 		const auto &[line, sent] = *it;
 		const auto &sent_type = typeid(*sent);
-		ret[line].back_line_num = line;
+		ret[line].lines.push_back(line);
 		if (sent_type != typeid(statement::EXIT)
 				&& sent_type != typeid(statement::GOTO)
 				&& sent_type != typeid(statement::END_FOR))
@@ -79,25 +83,26 @@ num_cfg_type gen_num_cfg(const program_type &prog)
 	add_edge_to(ret, BEGIN_IDX, prog.cbegin()->first);
 	for (auto it = ret.lower_bound(0); it != ret.end(); )
 		if (it->second.in_edge_cnt == 0)
-			it = remove_sent(ret, it->first);
+			it = remove_sent(ret, it->first, prog);
 		else
 			++it;
 	for (auto it = ret.lower_bound(0); it != ret.end(); ++it)
 	{
-		auto nxt = it;
-		++nxt;
-		if (nxt == ret.end())
-			break;
-		while (it->second.out_edge_cnt == 1 &&
-				nxt->second.in_edge_cnt == 1 &&
-				it->second.out_edge[0] == nxt->first)
+		auto &it_node = it->second;
+		while (it_node.out_edge_cnt == 1)
 		{
-			it->second.back_line_num = nxt->first;
-			memcpy(it->second.out_edge, nxt->second.out_edge,
-					sizeof(it->second.out_edge));
-			nxt = ret.erase(nxt);
-			if (nxt == ret.end())
+			auto nxt_id = it_node.out_edge[0];
+			auto nxt = ret[nxt_id];
+			if (nxt_id == END_IDX || nxt.in_edge_cnt != 1)
 				break;
+			it_node.out_edge_cnt = nxt.out_edge_cnt;
+			memcpy(it_node.out_edge, nxt.out_edge, sizeof(it_node.out_edge));
+			if (typeid(*(prog.at(it_node.lines.back())))
+					== typeid(statement::GOTO))
+				it_node.lines.pop_back();
+			it_node.lines.insert(it_node.lines.end(),
+					nxt.lines.begin(), nxt.lines.end());
+			ret.erase(nxt_id);
 		}
 	}
 	return ret;
@@ -110,13 +115,9 @@ cfg_type gen_cfg(const program_type &prog)
 			num_cfg_node != simple_cfg.cend();
 			++num_cfg_node)
 	{
-		int begin_line = num_cfg_node->first,
-			back_line = num_cfg_node->second.back_line_num;
 		std::vector<std::unique_ptr<statement::statement>> block_statement;
-		for (auto &&it_prog = prog.find(begin_line);
-				it_prog != prog.cend() && it_prog->first <= back_line;
-				++it_prog)
-			block_statement.push_back(it_prog->second->deep_copy());
+		for (const auto &line : num_cfg_node->second.lines)
+			block_statement.push_back(prog.at(line)->deep_copy());
 		const auto &last_sent = block_statement.back();
 		const auto &sent_type = typeid(*last_sent);
 		std::unique_ptr<expr::expr> condition = nullptr;
