@@ -2,23 +2,6 @@
 #include <typeinfo>
 namespace translate
 {
-std::ostream &operator<< (std::ostream &os, const instruction &x)
-{
-	x.print(os);
-	return os;
-}
-inline constexpr instruction inst_mem_2_reg(int mem, int reg)
-{
-	return instruction{inst_op::LW, sp, 0, -4 * (mem - REAL_REG + 1), reg};
-}
-inline constexpr instruction inst_reg_2_reg(int rs, int rd)
-{
-	return instruction{inst_op::ADDI, rs, 0, 0, rd};
-}
-inline constexpr instruction inst_reg_2_mem(int reg, int mem)
-{
-	return instruction{inst_op::SW, sp, reg, -4 * (mem - REAL_REG + 1), 0};
-}
 const int UNDETERMINED_REG = -1;
 std::vector<instruction>
 convert_val_expr(const std::unique_ptr<expr::expr> &e, int &target,
@@ -59,14 +42,14 @@ convert_val_expr(const std::unique_ptr<expr::expr> &e, int &target,
 	if (type == typeid(expr::imm_num))
 	{
 		const int &imm = static_cast<expr::imm_num&>(*e).value;
-		int high = imm & 0xfffff000, low = imm & 0xfff;
-		if (imm == (imm << 20 >> 20))
-			ret = { instruction{inst_op::ADDI, zero, 0, imm, ans} };
-		else
+		auto &&[high, low] = split_int32(imm);
+		if (high != 0)
 			ret = {
 				instruction{inst_op::LUI, 0, 0, high, ans},
-				instruction{inst_op::ORI, ans, 0, low, ans}
+				instruction{inst_op::ADDI, ans, 0, low, ans}
 			};
+		else
+			ret = {instruction{inst_op::ADDI, zero, 0, low, ans}};
 	}
 	else if (type == typeid(expr::neg))
 	{
