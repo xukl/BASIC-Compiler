@@ -3,6 +3,7 @@
 #include <utility>
 namespace inst
 {
+enum class inst_opcode {OP_IMM = 0b0010011, LOAD = 0b0000011, JALR = 0b1100111, LUI = 0b0110111, AUIPC = 0b0010111, OP = 0b0110011, JAL = 0b1101111, BRANCH = 0b1100011, STORE = 0b0100011, SYSTEM = 0b1110011, MISC_MEM = 0b0001111};
 enum class inst_op { ADD, SUB, MUL, DIV, ADDI, LUI, LW, SW, JALR, ECALL, AND, OR, SLTIU, SLT, BEQ, XORI, AUIPC };
 const int CALL_EXIT = 0, CALL_READ = 1, CALL_PRINT = 2;
 struct instruction
