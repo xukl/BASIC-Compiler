@@ -144,7 +144,7 @@ struct bool_or : bin_op
 	}
 	std::unique_ptr<expr> deep_copy() const
 	{
-		return std::make_unique<bool_and>(lc->deep_copy(), rc->deep_copy());
+		return std::make_unique<bool_or>(lc->deep_copy(), rc->deep_copy());
 	}
 };
 

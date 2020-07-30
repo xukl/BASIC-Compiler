@@ -106,7 +106,7 @@ void print_raw_prog(std::ostream &os, const raw_prog &prog)
 		os.width(2);
 		os.fill('0');
 		os << unsigned(prog[i]);
-		if ((i + 1) % 8 == 0)
+		if ((i + 1) % 16 == 0)
 			os << '\n';
 		else
 			os << ' ';

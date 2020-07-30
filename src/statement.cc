@@ -3,6 +3,7 @@
 #include <stack>
 #include <memory>
 #include <utility>
+#include <typeinfo>
 namespace statement
 {
 std::ostream &operator<< (std::ostream &os, const statement &x)
@@ -70,6 +71,32 @@ program_type read_program(std::istream &is)
 		else
 			throw "Unknown token.";
 		attemp_insert.first->second = std::move(sentence);
+	}
+	for (auto &[line, sent] : ret)
+	{
+		const auto &sent_type = typeid(*sent);
+		if (sent_type == typeid(IF))
+		{
+			line_num &target_line = static_cast<IF&>(*sent).line;
+			if (typeid(*ret[target_line]) == typeid(FOR))
+			{
+				line_num end_for_line =
+					static_cast<FOR&>(*ret[target_line]).end_for_line;
+				if (line >= target_line && line <= end_for_line)
+					target_line = end_for_line;
+			}
+		}
+		if (sent_type == typeid(GOTO))
+		{
+			line_num &target_line = static_cast<GOTO&>(*sent).line;
+			if (typeid(*ret[target_line]) == typeid(FOR))
+			{
+				line_num end_for_line =
+					static_cast<FOR&>(*ret[target_line]).end_for_line;
+				if (line >= target_line && line <= end_for_line)
+					target_line = end_for_line;
+			}
+		}
 	}
 	if (!is.eof())
 		throw "Error when reading program. Probably caused by missing line number.";

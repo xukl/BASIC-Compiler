@@ -1,0 +1,6 @@
+cmake_minimum_required (VERSION 3.5)
+project (BASIC-Compiler)
+FILE (GLOB ALL_SOURCES "src/*.cc" )
+add_compile_options (-O2 -Wall -Wextra)
+set (CMAKE_CXX_STANDARD 20)
+add_executable (compiler ${ALL_SOURCES} ${ALL_INCLUDES})
