@@ -3,7 +3,7 @@
 #include <utility>
 namespace inst
 {
-enum class inst_op { ADD, SUB, MUL, DIV, ADDI, LUI, ORI, LW, SW, JALR, INPUT, EXIT, AND, OR, SLTIU, SLT, BEQ, BNE, XORI, AUIPC };
+enum class inst_op { ADD, SUB, MUL, DIV, ADDI, LUI, LW, SW, JALR, ECALL, AND, OR, SLTIU, SLT, BEQ, XORI, AUIPC };
 const int CALL_EXIT = 0, CALL_READ = 1, CALL_PRINT = 2;
 struct instruction
 {
@@ -38,9 +38,9 @@ struct instruction
 				os << #op_type << " x" << rd << ", " << imm;\
 				break;
 			R_case(ADD)R_case(SUB)R_case(MUL)R_case(DIV)R_case(AND)R_case(OR)R_case(SLT)
-			I_case(ADDI)I_case(ORI)I_case(SLTIU)I_case(XORI)I_case(JALR)
+			I_case(ADDI)I_case(SLTIU)I_case(XORI)I_case(JALR)
 			S_case(SW)
-			B_case(BEQ)B_case(BNE)
+			B_case(BEQ)
 			U_case(LUI)U_case(AUIPC)
 #undef R_case
 #undef I_case
@@ -48,11 +48,8 @@ struct instruction
 #undef B_case
 #undef U_case
 #undef J_case
-			case inst_op::INPUT:
-				os << "INPUT";
-				break;
-			case inst_op::EXIT:
-				os << "EXIT";
+			case inst_op::ECALL:
+				os << "ECALL";
 				break;
 			case inst_op::LW:
 				os << "LW x" << rd << ", " << imm << "(x" << rs1 << ")";

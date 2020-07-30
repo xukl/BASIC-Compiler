@@ -219,7 +219,7 @@ obj_code translate_to_obj_code(const basic_block::cfg_type &cfg)
 					auto mem_reg = reg_map.preserve_var(name, 1);
 					sent_inst.insert(sent_inst.end(), {
 						instruction{inst_op::ADDI, zero, 0, CALL_READ, a0},
-						instruction{inst_op::INPUT, 0, 0, 0, 0},
+						instruction{inst_op::ECALL, 0, 0, 0, 0},
 						inst_reg_2_mem(a0, mem_reg)
 					});
 				}
@@ -232,7 +232,7 @@ obj_code translate_to_obj_code(const basic_block::cfg_type &cfg)
 						exit_val_reg, reg_map);
 				sent_inst.insert(sent_inst.end(), {
 					instruction{inst_op::ADDI, zero, 0, CALL_EXIT, a0},
-					instruction{inst_op::EXIT, 0, 0, 0, 0}
+					instruction{inst_op::ECALL, 0, 0, 0, 0}
 				});
 				reg_map.deallocate_reg(a1);
 			}

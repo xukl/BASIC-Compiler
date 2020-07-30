@@ -3,9 +3,9 @@
 namespace link
 {
 using namespace inst;
-std::vector<instruction> link(const translate::obj_code &obj)
+linked_prog link(const translate::obj_code &obj)
 {
-	std::vector<instruction> ret;
+	linked_prog ret;
 	std::map<int, int> block_pc_map;
 	std::map<int, int> block_jump_pos;
 	ret.push_back(instruction{inst_op::LUI, 0, 0, 0x20 << 12, sp});
@@ -51,9 +51,14 @@ std::vector<instruction> link(const translate::obj_code &obj)
 	}
 	return ret;
 }
-void print_linked_code(std::ostream &os, const std::vector<instruction> &code)
+void print_linked_code(std::ostream &os, const linked_prog &code)
 {
+	const auto &os_flag = os.flags();
 	for (size_t i = 0; i < code.size(); ++i)
-		os << std::hex << 4*i << ":\t " << std::dec << code[i] << std::endl;
+	{
+		os << std::hex << 4*i << ":\t ";
+		os.flags(os_flag);
+		os << code[i] << std::endl;
+	}
 }
 }
